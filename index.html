@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f766e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg">
+<title>Pep Journal</title>
+<style>
+:root{
+  --bg:#f5f7f7;--card:#fff;--ink:#14201f;--mute:#5b6b69;--line:#dbe3e2;
+  --brand:#0f766e;--brand-ink:#fff;--ok:#16a34a;--warn:#eab308;--bad:#dc2626;--danger:#b91c1c;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#0e1514;--card:#17201f;--ink:#e8f0ef;--mute:#9fb1af;--line:#2a3837;--brand:#2dd4bf;--brand-ink:#04211e;--danger:#f87171}
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+body{padding-bottom:84px}
+header{padding:14px 16px 4px;display:flex;align-items:baseline;gap:8px}
+header h1{margin:0;font-size:20px}
+header small{color:var(--mute)}
+main{padding:8px 16px 16px;max-width:640px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin:10px 0}
+.card h2{margin:0 0 8px;font-size:16px}
+label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
+input,select,textarea{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;min-height:44px}
+textarea{min-height:64px}
+.row{display:flex;gap:10px}.row>*{flex:1;min-width:0}
+button{font:inherit;min-height:44px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:8px 14px;cursor:pointer}
+button.primary{background:var(--brand);color:var(--brand-ink);border-color:var(--brand);font-weight:600;width:100%;margin-top:12px}
+button.small{min-height:36px;padding:4px 10px;font-size:14px}
+button.danger{color:var(--danger);border-color:var(--danger)}
+nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;border:0;border-radius:0;min-height:58px;background:none;color:var(--mute);font-size:12px}
+nav button.on{color:var(--brand);font-weight:700}
+.item{border-top:1px solid var(--line);padding:10px 0}
+.item:first-of-type{border-top:0}
+.item .top{display:flex;justify-content:space-between;gap:8px}
+.item .meta{color:var(--mute);font-size:13px}
+.item .actions{margin-top:6px;display:flex;gap:8px}
+.mute{color:var(--mute);font-size:13px}
+.pill{display:inline-block;font-size:12px;padding:1px 8px;border-radius:99px;border:1px solid var(--line);color:var(--mute)}
+.pill.bad{color:var(--danger);border-color:var(--danger)}
+.pill.warn{color:#a16207;border-color:var(--warn)}
+.maps{display:flex;gap:6px}.maps>div{flex:1;text-align:center;font-size:12px;color:var(--mute)}
+svg.map{width:100%;height:auto;max-height:340px}
+svg.map .body{fill:none;stroke:var(--mute);stroke-width:1.5}
+svg.map .site{cursor:pointer}
+svg.map .site circle{stroke:var(--card);stroke-width:1.5}
+svg.map .site.ok circle{fill:var(--ok)}
+svg.map .site.warn circle{fill:var(--warn)}
+svg.map .site.bad circle{fill:var(--bad)}
+svg.map .site.sel circle{stroke:var(--ink);stroke-width:3}
+svg.map .site text{font-size:8px;fill:#fff;text-anchor:middle;pointer-events:none;font-weight:700}
+svg.map .site.warn text{fill:#111}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--mute);margin-top:6px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px}
+.bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin-top:6px}
+.bar>div{height:100%;background:var(--brand)}
+.toast{position:fixed;left:16px;right:16px;bottom:74px;max-width:608px;margin:auto;background:var(--ink);color:var(--bg);padding:12px 14px;border-radius:10px;z-index:30}
+#report{display:none;position:fixed;inset:0;background:#fff;color:#000;overflow:auto;z-index:20;padding:16px}
+#report table{width:100%;border-collapse:collapse;font-size:13px;margin:6px 0 14px}
+#report th,#report td{border:1px solid #bbb;padding:4px 6px;text-align:left;vertical-align:top}
+#report h1{font-size:20px;margin:0}#report h2{font-size:15px;margin:14px 0 2px}
+@media print{
+  body>*:not(#report){display:none!important}
+  #report{position:static;display:block!important;padding:0}
+  #report .noprint{display:none}
+}
+</style>
+</head>
+<body>
+<header><h1>Pep Journal</h1><small id="sub"></small></header>
+<main id="main"></main>
+<nav id="nav"></nav>
+<div id="report"></div>
+<div id="toast" class="toast" hidden></div>
+
+<script>
+// ===== 1. DATA =====
+// Everything lives in this phone's localStorage. No server, no account, no network calls.
+// Weights are stored in kg and converted for display, so changing lb/kg never changes history.
+var KEY = 'pepjournal_v1';
+var BUILD = 'Build 2026-10-31.1';
+function blank() { return { doses: [], vials: [], symptoms: [], weights: [], settings: { unit: 'lb' } }; }
+function load() {
+  try {
+    var raw = localStorage.getItem(KEY);
+    if (raw) {
+      var d = JSON.parse(raw), b = blank();
+      ['doses', 'vials', 'symptoms', 'weights'].forEach(function (k) { if (Array.isArray(d[k])) b[k] = d[k]; });
+      if (d.settings) b.settings = Object.assign(b.settings, d.settings);
+      return b;
+    }
+  } catch (e) { /* fall through to blank; loud failure is the toast below */ }
+  return blank();
+}
+var S = load();
+// Fail loudly: a silent save failure means the user thinks a dose is logged when it is not.
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(S)); return true; }
+  catch (e) { toast('COULD NOT SAVE. Phone storage is blocked or full. Export a backup now.', 8000); return false; }
+}
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function $(id) { return document.getElementById(id); }
+
+// ===== 2. SITES =====
+// "Left"/"right" are the PERSON's left/right, so on the front view left sits on the viewer's right.
+var SITES = {
+  'abd-r':  { n: 'Abdomen, right',     v: 'front', x: 88,  y: 128 },
+  'abd-l':  { n: 'Abdomen, left',      v: 'front', x: 112, y: 128 },
+  'flk-r':  { n: 'Love handle, right', v: 'front', x: 71,  y: 152 },
+  'flk-l':  { n: 'Love handle, left',  v: 'front', x: 129, y: 152 },
+  'thi-r':  { n: 'Thigh, right',       v: 'front', x: 85,  y: 215 },
+  'thi-l':  { n: 'Thigh, left',        v: 'front', x: 115, y: 215 },
+  'arm-l':  { n: 'Upper arm, left',    v: 'back',  x: 54,  y: 100 },
+  'arm-r':  { n: 'Upper arm, right',   v: 'back',  x: 146, y: 100 },
+  'lbk-l':  { n: 'Lower back, left',   v: 'back',  x: 88,  y: 138 },
+  'lbk-r':  { n: 'Lower back, right',  v: 'back',  x: 112, y: 138 },
+  'glu-l':  { n: 'Glute, left',        v: 'back',  x: 88,  y: 178 },
+  'glu-r':  { n: 'Glute, right',       v: 'back',  x: 112, y: 178 }
+};
+function siteName(id) { return SITES[id] ? SITES[id].n : ''; }
+function daysSince(ts) { return Math.floor((Date.now() - new Date(ts).getTime()) / 864e5); }
+function lastUsed(site) {
+  var t = null;
+  S.doses.forEach(function (d) { if (d.site === site && (t === null || d.ts > t)) t = d.ts; });
+  return t;
+}
+// never used or rested 7+ days = green, 3-6 = yellow, under 3 = red
+function rest(site) {
+  var t = lastUsed(site);
+  if (t === null) return { cls: 'ok', days: null };
+  var n = daysSince(t);
+  return { cls: n >= 7 ? 'ok' : n >= 3 ? 'warn' : 'bad', days: n };
+}
+function suggestSite() {
+  var best = null, bestDays = -1;
+  Object.keys(SITES).forEach(function (id) {
+    var r = rest(id), d = r.days === null ? 9999 : r.days;
+    if (d > bestDays) { best = id; bestDays = d; }
+  });
+  return best;
+}
+function mapHTML(sel) {
+  var parts = ['front', 'back'].map(function (view) {
+    var g = Object.keys(SITES).filter(function (id) { return SITES[id].v === view; }).map(function (id) {
+      var s = SITES[id], r = rest(id);
+      var label = r.days === null ? 'new' : (r.days > 99 ? '99+' : r.days + 'd');
+      return '<g class="site ' + r.cls + (sel === id ? ' sel' : '') + '" data-site="' + id + '">' +
+        '<circle cx="' + s.x + '" cy="' + s.y + '" r="12"/><text x="' + s.x + '" y="' + (s.y + 3) + '">' + label + '</text>' +
+        '<title>' + esc(s.n) + '</title></g>';
+    }).join('');
+    return '<div>' + (view === 'front' ? 'Front' : 'Back') +
+      '<svg class="map" viewBox="0 0 200 300" role="img" aria-label="' + view + ' body map">' +
+      '<g class="body"><circle cx="100" cy="30" r="16"/><rect x="68" y="55" width="64" height="110" rx="18"/>' +
+      '<rect x="42" y="60" width="22" height="95" rx="11"/><rect x="136" y="60" width="22" height="95" rx="11"/>' +
+      '<rect x="70" y="162" width="28" height="128" rx="13"/><rect x="102" y="162" width="28" height="128" rx="13"/></g>' + g + '</svg></div>';
+  });
+  return '<div class="maps">' + parts.join('') + '</div>' +
+    '<div class="legend"><span><i style="background:var(--ok)"></i>7+ days / unused</span>' +
+    '<span><i style="background:var(--warn)"></i>3-6 days</span><span><i style="background:var(--bad)"></i>under 3 days</span></div>';
+}
+
+// ===== 3. HELPERS =====
+function pad(n) { return String(n).padStart(2, '0'); }
+function toLocalInput(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+function toDateInput(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+function fmt(ts) { return new Date(ts).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
+function fmtDate(s) { if (!s) return ''; var d = new Date(s.length === 10 ? s + 'T00:00' : s); return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }); }
+function num(n) { return String(Math.round(n * 1000) / 1000); }
+var KG_PER_LB = 0.45359237;
+function toDisp(kg) { return S.settings.unit === 'lb' ? kg / KG_PER_LB : kg; }
+function fromDisp(v) { return S.settings.unit === 'lb' ? v * KG_PER_LB : v; }
+var toastTimer;
+function toast(msg, ms) {
+  var t = $('toast'); t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, ms || 2500);
+}
+// Vial bookkeeping. sign -1 = take from the vial, +1 = give it back (edit/delete).
+// Only adjusts when the dose unit matches the vial unit; mixing mg and mcg silently would corrupt the count.
+function applyVial(d, sign) {
+  if (!d.vialId) return true;
+  var v = S.vials.filter(function (x) { return x.id === d.vialId; })[0];
+  if (!v) return true;
+  if (v.unit !== d.unit) return false;
+  v.remaining = Math.min(v.total, Math.max(0, Math.round((v.remaining + sign * d.amount) * 10000) / 10000));
+  return true;
+}
+
+// ===== 4. VIEWS =====
+var tab = 'log', editing = null, draft = { site: '' };
+var TABS = [['log', 'Log'], ['sites', 'Sites'], ['vials', 'Vials'], ['progress', 'Progress'], ['more', 'More']];
+var UNITS = ['mcg', 'mg', 'units', 'IU', 'mL'];
+
+function unitOpts(sel) { return UNITS.map(function (u) { return '<option' + (u === sel ? ' selected' : '') + '>' + u + '</option>'; }).join(''); }
+
+function viewLog() {
+  var last = S.doses.slice().sort(function (a, b) { return b.ts < a.ts ? -1 : 1; })[0];
+  var e = editing ? S.doses.filter(function (d) { return d.id === editing; })[0] : null;
+  var base = e || last || {};
+  var compounds = {};
+  S.doses.forEach(function (d) { compounds[d.compound] = 1; });
+  var vials = S.vials.filter(function (v) { return v.remaining > 0 || (e && e.vialId === v.id); });
+  var sug = suggestSite();
+  var h = '<div class="card"><h2>' + (e ? 'Edit dose' : 'Log a dose') + '</h2><form id="doseForm" autocomplete="off">' +
+    '<label for="compound">What</label><input id="compound" list="clist" value="' + esc(base.compound || '') + '" placeholder="Name of what you took">' +
+    '<datalist id="clist">' + Object.keys(compounds).map(function (c) { return '<option value="' + esc(c) + '">'; }).join('') + '</datalist>' +
+    '<div class="row"><div><label for="amount">Amount</label><input id="amount" type="number" step="any" min="0" inputmode="decimal" value="' + esc(base.amount || '') + '"></div>' +
+    '<div><label for="unit">Unit</label><select id="unit">' + unitOpts(base.unit || 'mcg') + '</select></div></div>' +
+    '<label for="when">When</label><input id="when" type="datetime-local" value="' + toLocalInput(e ? new Date(e.ts) : new Date()) + '">' +
+    '<label for="vial">From vial (optional)</label><select id="vial"><option value="">None</option>' +
+    vials.map(function (v) { return '<option value="' + v.id + '"' + (base.vialId === v.id && (e || last) ? ' selected' : '') + '>' + esc(v.label) + ' (' + num(v.remaining) + ' ' + esc(v.unit) + ' left)</option>'; }).join('') + '</select>' +
+    '<label>Site <span class="mute">' + (draft.site ? '- ' + esc(siteName(draft.site)) : '(tap the map)') + '</span></label>' +
+    mapHTML(draft.site) +
+    (sug ? '<p class="mute">Most rested: <b>' + esc(siteName(sug)) + '</b> <button type="button" class="small" data-act="pickSug" data-site="' + sug + '">Use it</button></p>' : '') +
+    '<label for="notes">Notes</label><textarea id="notes" placeholder="Optional">' + esc(e ? e.notes : '') + '</textarea>' +
+    '<button class="primary" type="submit">' + (e ? 'Save changes' : 'Save dose') + '</button>' +
+    (e ? '<button type="button" class="small" style="margin-top:8px" data-act="cancelEdit">Cancel edit</button>' : '') +
+    '</form></div>';
+  var list = S.doses.slice().sort(function (a, b) { return b.ts < a.ts ? -1 : 1; }).slice(0, 30);
+  h += '<div class="card"><h2>Recent doses</h2>' + (list.length ? list.map(function (d) {
+    return '<div class="item"><div class="top"><b>' + esc(d.compound) + ' ' + esc(num(d.amount)) + ' ' + esc(d.unit) + '</b><span class="meta">' + esc(fmt(d.ts)) + '</span></div>' +
+      '<div class="meta">' + esc(siteName(d.site) || 'No site') + (d.notes ? ' - ' + esc(d.notes) : '') + '</div>' +
+      '<div class="actions"><button class="small" data-act="editDose" data-id="' + d.id + '">Edit</button><button class="small danger" data-act="delDose" data-id="' + d.id + '">Delete</button></div></div>';
+  }).join('') : '<p class="mute">Nothing logged yet.</p>') + '</div>';
+  return h;
+}
+
+function viewSites() {
+  var rows = Object.keys(SITES).map(function (id) {
+    var r = rest(id), t = lastUsed(id);
+    return { id: id, r: r, t: t };
+  }).sort(function (a, b) { return (a.r.days === null ? 9999 : a.r.days) < (b.r.days === null ? 9999 : b.r.days) ? 1 : -1; });
+  return '<div class="card"><h2>Rotation map</h2>' + mapHTML('') +
+    '<p class="mute">Numbers show days since that spot was last used. Spots rest longest are listed first below.</p></div>' +
+    '<div class="card"><h2>Most rested first</h2>' + rows.map(function (x) {
+      return '<div class="item"><div class="top"><span>' + esc(SITES[x.id].n) + '</span><span class="pill ' + (x.r.cls === 'ok' ? '' : x.r.cls) + '">' +
+        (x.r.days === null ? 'never used' : x.r.days + ' days ago') + '</span></div></div>';
+    }).join('') + '</div>';
+}
+
+function viewVials() {
+  var h = '<div class="card"><h2>Add a vial</h2><form id="vialForm" autocomplete="off">' +
+    '<label for="vlabel">Label</label><input id="vlabel" placeholder="e.g. Batch A">' +
+    '<label for="vcomp">What it is</label><input id="vcomp" placeholder="Name">' +
+    '<div class="row"><div><label for="vtotal">Total amount</label><input id="vtotal" type="number" step="any" min="0" inputmode="decimal"></div>' +
+    '<div><label for="vunit">Unit</label><select id="vunit">' + unitOpts('mg') + '</select></div></div>' +
+    '<div class="row"><div><label for="vrecon">Mixed / opened</label><input id="vrecon" type="date"></div>' +
+    '<div><label for="vexp">Expires</label><input id="vexp" type="date"></div></div>' +
+    '<label for="vnotes">Notes</label><input id="vnotes" placeholder="Optional">' +
+    '<button class="primary" type="submit">Add vial</button></form></div>';
+  h += '<div class="card"><h2>Inventory</h2>' + (S.vials.length ? S.vials.map(function (v) {
+    var pct = v.total > 0 ? Math.round(v.remaining / v.total * 100) : 0;
+    var exp = '';
+    if (v.expiry) {
+      var dl = Math.ceil((new Date(v.expiry + 'T23:59').getTime() - Date.now()) / 864e5);
+      exp = dl < 0 ? '<span class="pill bad">expired</span>' : dl <= 14 ? '<span class="pill warn">expires in ' + dl + 'd</span>' : '<span class="pill">exp ' + esc(fmtDate(v.expiry)) + '</span>';
+    }
+    return '<div class="item"><div class="top"><b>' + esc(v.label) + '</b>' + exp + '</div>' +
+      '<div class="meta">' + esc(v.compound) + ' - ' + num(v.remaining) + ' of ' + num(v.total) + ' ' + esc(v.unit) + ' left' +
+      (v.recon ? ' - opened ' + esc(fmtDate(v.recon)) : '') + (v.notes ? ' - ' + esc(v.notes) : '') + '</div>' +
+      '<div class="bar"><div style="width:' + pct + '%"></div></div>' +
+      '<div class="actions"><button class="small" data-act="adjVial" data-id="' + v.id + '">Set remaining</button><button class="small danger" data-act="delVial" data-id="' + v.id + '">Delete</button></div></div>';
+  }).join('') : '<p class="mute">No vials yet.</p>') + '</div>';
+  return h;
+}
+
+function weightChart() {
+  var w = S.weights.slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+  if (w.length < 2) return '<p class="mute">Add two or more weigh-ins to see the trend.</p>';
+  var vals = w.map(function (x) { return toDisp(x.kg); });
+  var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
+  if (hi - lo < 1) { hi += 0.5; lo -= 0.5; }
+  var W = 320, H = 150, L = 36, R = 8, T = 10, B = 20;
+  var t0 = new Date(w[0].date + 'T00:00').getTime(), t1 = new Date(w[w.length - 1].date + 'T00:00').getTime();
+  if (t1 === t0) t1 = t0 + 864e5;
+  var pts = w.map(function (x, i) {
+    var px = L + (new Date(x.date + 'T00:00').getTime() - t0) / (t1 - t0) * (W - L - R);
+    var py = T + (1 - (vals[i] - lo) / (hi - lo)) * (H - T - B);
+    return px.toFixed(1) + ',' + py.toFixed(1);
+  });
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%" role="img" aria-label="Weight trend">' +
+    '<polyline fill="none" stroke="var(--brand)" stroke-width="2" points="' + pts.join(' ') + '"/>' +
+    pts.map(function (p) { var c = p.split(','); return '<circle cx="' + c[0] + '" cy="' + c[1] + '" r="3" fill="var(--brand)"/>'; }).join('') +
+    '<g fill="var(--mute)" font-size="10"><text x="2" y="' + (T + 8) + '">' + hi.toFixed(1) + '</text><text x="2" y="' + (H - B) + '">' + lo.toFixed(1) + '</text>' +
+    '<text x="' + L + '" y="' + (H - 4) + '">' + esc(fmtDate(w[0].date)) + '</text><text x="' + (W - R) + '" y="' + (H - 4) + '" text-anchor="end">' + esc(fmtDate(w[w.length - 1].date)) + '</text></g></svg>';
+}
+
+function viewProgress() {
+  var u = S.settings.unit;
+  var recent = S.doses.slice().sort(function (a, b) { return b.ts < a.ts ? -1 : 1; }).slice(0, 10);
+  var h = '<div class="card"><h2>Weight (' + u + ')</h2>' + weightChart() +
+    '<form id="wForm" class="row" style="margin-top:8px;align-items:flex-end"><div><label for="wdate">Date</label><input id="wdate" type="date" value="' + toDateInput(new Date()) + '"></div>' +
+    '<div><label for="wval">Weight</label><input id="wval" type="number" step="any" min="0" inputmode="decimal"></div>' +
+    '<div style="flex:0 0 80px"><button class="primary" style="margin-top:0" type="submit">Add</button></div></form>' +
+    S.weights.slice().sort(function (a, b) { return a.date < b.date ? 1 : -1; }).slice(0, 10).map(function (x) {
+      return '<div class="item"><div class="top"><span>' + esc(fmtDate(x.date)) + '</span><span><b>' + toDisp(x.kg).toFixed(1) + ' ' + u + '</b> <button class="small danger" data-act="delW" data-id="' + x.id + '">x</button></span></div></div>';
+    }).join('') + '</div>';
+  h += '<div class="card"><h2>Side effects / how I feel</h2><form id="sxForm" autocomplete="off">' +
+    '<label for="sxwhat">What happened</label><input id="sxwhat" placeholder="e.g. nausea, headache, fine">' +
+    '<div class="row"><div><label for="sxsev">Severity</label><select id="sxsev"><option value="1">1 - mild</option><option value="2">2</option><option value="3">3 - moderate</option><option value="4">4</option><option value="5">5 - severe</option></select></div>' +
+    '<div><label for="sxwhen">When</label><input id="sxwhen" type="datetime-local" value="' + toLocalInput(new Date()) + '"></div></div>' +
+    '<label for="sxdose">After which dose (optional)</label><select id="sxdose"><option value="">Not linked</option>' +
+    recent.map(function (d) { return '<option value="' + d.id + '">' + esc(d.compound + ' ' + num(d.amount) + d.unit + ' - ' + fmt(d.ts)) + '</option>'; }).join('') + '</select>' +
+    '<button class="primary" type="submit">Add note</button></form>' +
+    S.symptoms.slice().sort(function (a, b) { return b.ts < a.ts ? -1 : 1; }).slice(0, 15).map(function (x) {
+      var d = S.doses.filter(function (y) { return y.id === x.doseId; })[0];
+      return '<div class="item"><div class="top"><b>' + esc(x.what) + '</b><span class="meta">sev ' + esc(x.sev) + ' - ' + esc(fmt(x.ts)) + '</span></div>' +
+        (d ? '<div class="meta">after ' + esc(d.compound + ' ' + num(d.amount) + d.unit) + '</div>' : '') +
+        '<div class="actions"><button class="small danger" data-act="delSx" data-id="' + x.id + '">Delete</button></div></div>';
+    }).join('') + '</div>';
+  return h;
+}
+
+function viewMore() {
+  return '<div class="card"><h2>Doctor report</h2><p class="mute">A one-page summary you can print or save as a PDF to show at an appointment.</p>' +
+    '<div class="row"><button data-act="report" data-days="30">Last 30 days</button><button data-act="report" data-days="90">Last 90 days</button><button data-act="report" data-days="0">Everything</button></div></div>' +
+    '<div class="card"><h2>Backup</h2><p class="mute">Your data lives only on this phone. If you clear browser data or lose the phone, it is gone. Export a backup regularly and keep it somewhere safe.</p>' +
+    '<button class="primary" data-act="export">Export backup</button>' +
+    '<label for="imp">Restore from a backup file</label><input id="imp" type="file" accept="application/json,.json">' +
+    '<p class="mute" id="bkStat">' + (S.settings.lastBackup ? 'Last backup: ' + esc(fmt(S.settings.lastBackup)) : 'No backup made yet.') + '</p></div>' +
+    '<div class="card"><h2>Settings</h2><label for="unitSel">Weight unit</label><select id="unitSel"><option value="lb"' + (S.settings.unit === 'lb' ? ' selected' : '') + '>lb</option><option value="kg"' + (S.settings.unit === 'kg' ? ' selected' : '') + '>kg</option></select></div>' +
+    '<div class="card"><h2>About</h2><p class="mute">Pep Journal is a personal record keeper. It does not give medical advice, dosing instructions or recommendations. It only stores what you and your prescriber decide. Nothing leaves this phone.</p>' +
+    '<p class="mute">' + BUILD + '</p><button class="danger small" data-act="wipe">Erase everything</button></div>';
+}
+
+function render() {
+  var views = { log: viewLog, sites: viewSites, vials: viewVials, progress: viewProgress, more: viewMore };
+  $('main').innerHTML = views[tab]();
+  $('nav').innerHTML = TABS.map(function (t) { return '<button data-tab="' + t[0] + '" class="' + (t[0] === tab ? 'on' : '') + '">' + t[1] + '</button>'; }).join('');
+  $('sub').textContent = S.doses.length + (S.doses.length === 1 ? ' dose logged' : ' doses logged');
+}
+
+// ===== 5. ACTIONS =====
+function saveDose(ev) {
+  ev.preventDefault();
+  var compound = $('compound').value.trim(), amount = parseFloat($('amount').value);
+  var when = new Date($('when').value);
+  if (!compound) { toast('Enter what you took.'); return; }
+  if (!(amount > 0)) { toast('Enter an amount greater than zero.'); return; }
+  if (isNaN(when.getTime())) { toast('Pick a valid date and time.'); return; }
+  var d = { id: editing || uid(), ts: when.toISOString(), compound: compound, amount: amount, unit: $('unit').value, site: draft.site || '', vialId: $('vial').value, notes: $('notes').value.trim() };
+  var snapshot = JSON.stringify(S);
+  if (editing) {
+    var i = S.doses.findIndex(function (x) { return x.id === editing; });
+    applyVial(S.doses[i], +1);
+    S.doses[i] = d;
+  } else S.doses.push(d);
+  var ok = applyVial(d, -1);
+  if (!save()) { S = JSON.parse(snapshot); return; }
+  var wasEdit = !!editing;
+  editing = null; draft = { site: '' };
+  render();
+  window.scrollTo(0, 0);
+  toast(wasEdit ? 'Dose updated.' : ok ? 'Dose saved.' : 'Dose saved. Vial count not changed (units differ).');
+}
+function saveVial(ev) {
+  ev.preventDefault();
+  var label = $('vlabel').value.trim(), total = parseFloat($('vtotal').value);
+  if (!label) { toast('Give the vial a label.'); return; }
+  if (!(total > 0)) { toast('Enter the total amount.'); return; }
+  S.vials.push({ id: uid(), label: label, compound: $('vcomp').value.trim(), total: total, remaining: total, unit: $('vunit').value, recon: $('vrecon').value, expiry: $('vexp').value, notes: $('vnotes').value.trim() });
+  if (save()) { render(); toast('Vial added.'); }
+}
+function saveWeight(ev) {
+  ev.preventDefault();
+  var v = parseFloat($('wval').value);
+  if (!(v > 0) || !$('wdate').value) { toast('Enter a date and weight.'); return; }
+  S.weights.push({ id: uid(), date: $('wdate').value, kg: fromDisp(v) });
+  if (save()) { render(); toast('Weight saved.'); }
+}
+function saveSx(ev) {
+  ev.preventDefault();
+  var what = $('sxwhat').value.trim(), when = new Date($('sxwhen').value);
+  if (!what) { toast('Describe what happened.'); return; }
+  if (isNaN(when.getTime())) { toast('Pick a valid date and time.'); return; }
+  S.symptoms.push({ id: uid(), ts: when.toISOString(), what: what, sev: parseInt($('sxsev').value, 10), doseId: $('sxdose').value });
+  if (save()) { render(); toast('Note saved.'); }
+}
+function exportBackup() {
+  S.settings.lastBackup = new Date().toISOString();
+  save();
+  var blob = new Blob([JSON.stringify({ app: 'pep-journal', version: 1, exported: S.settings.lastBackup, data: S }, null, 2)], { type: 'application/json' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'pep-journal-backup-' + toDateInput(new Date()) + '.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+  render();
+  toast('Backup downloaded. Check your Downloads folder.', 5000);
+}
+function importBackup(file) {
+  var r = new FileReader();
+  r.onload = function () {
+    try {
+      var j = JSON.parse(r.result), d = j && j.data;
+      if (!d || !Array.isArray(d.doses) || !Array.isArray(d.vials)) throw new Error('bad');
+      if (!confirm('Replace everything on this phone with this backup (' + d.doses.length + ' doses)? Your current data is kept as a safety copy.')) return;
+      try { localStorage.setItem(KEY + '_prev', localStorage.getItem(KEY) || ''); } catch (e) { /* best effort */ }
+      var b = blank();
+      ['doses', 'vials', 'symptoms', 'weights'].forEach(function (k) { if (Array.isArray(d[k])) b[k] = d[k]; });
+      b.settings = Object.assign(b.settings, d.settings || {});
+      S = b;
+      if (save()) { render(); toast('Backup restored.'); }
+    } catch (e) { toast('That file is not a Pep Journal backup. Nothing was changed.', 5000); }
+  };
+  r.readAsText(file);
+}
+function buildReport(days) {
+  var cutoff = days ? Date.now() - days * 864e5 : 0;
+  var doses = S.doses.filter(function (d) { return new Date(d.ts).getTime() >= cutoff; }).sort(function (a, b) { return a.ts < b.ts ? -1 : 1; });
+  var sx = S.symptoms.filter(function (d) { return new Date(d.ts).getTime() >= cutoff; }).sort(function (a, b) { return a.ts < b.ts ? -1 : 1; });
+  var ws = S.weights.filter(function (d) { return new Date(d.date + 'T00:00').getTime() >= cutoff; }).sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+  var u = S.settings.unit;
+  function tbl(head, rows) { return rows.length ? '<table><tr>' + head.map(function (x) { return '<th>' + x + '</th>'; }).join('') + '</tr>' + rows.map(function (r) { return '<tr>' + r.map(function (c) { return '<td>' + esc(c) + '</td>'; }).join('') + '</tr>'; }).join('') + '</table>' : '<p>None recorded.</p>'; }
+  var wsum = ws.length >= 2 ? '<p>Change: ' + (toDisp(ws[ws.length - 1].kg) - toDisp(ws[0].kg)).toFixed(1) + ' ' + u + ' (' + toDisp(ws[0].kg).toFixed(1) + ' to ' + toDisp(ws[ws.length - 1].kg).toFixed(1) + ')</p>' : '';
+  $('report').innerHTML = '<div class="noprint"><button data-act="printReport">Print / Save as PDF</button> <button data-act="closeReport">Close</button></div>' +
+    '<h1>Pep Journal report</h1><p>' + (days ? 'Last ' + days + ' days' : 'All records') + ' - generated ' + esc(fmtDate(new Date().toISOString())) + ' - self-recorded, not verified</p>' +
+    '<h2>Doses (' + doses.length + ')</h2>' + tbl(['Date', 'What', 'Amount', 'Site', 'Notes'], doses.map(function (d) { return [fmt(d.ts), d.compound, num(d.amount) + ' ' + d.unit, siteName(d.site), d.notes]; })) +
+    '<h2>Side effects / notes</h2>' + tbl(['Date', 'What', 'Severity (1-5)'], sx.map(function (x) { return [fmt(x.ts), x.what, x.sev]; })) +
+    '<h2>Weight (' + u + ')</h2>' + wsum + tbl(['Date', 'Weight'], ws.map(function (x) { return [fmtDate(x.date), toDisp(x.kg).toFixed(1)]; })) +
+    '<h2>Current vials</h2>' + tbl(['Label', 'What', 'Remaining', 'Expires'], S.vials.map(function (v) { return [v.label, v.compound, num(v.remaining) + ' of ' + num(v.total) + ' ' + v.unit, fmtDate(v.expiry)]; }));
+  $('report').style.display = 'block';
+  $('report').scrollTop = 0;
+}
+
+document.addEventListener('click', function (e) {
+  var t = e.target.closest('[data-tab]');
+  if (t) { tab = t.getAttribute('data-tab'); editing = null; render(); window.scrollTo(0, 0); return; }
+  var s = e.target.closest('[data-site]');
+  if (s && tab === 'log') {
+    // keep what the user already typed: the map re-renders the whole form
+    var keep = { compound: $('compound').value, amount: $('amount').value, unit: $('unit').value, when: $('when').value, vial: $('vial').value, notes: $('notes').value };
+    draft.site = draft.site === s.getAttribute('data-site') ? '' : s.getAttribute('data-site');
+    render();
+    Object.keys(keep).forEach(function (k) { $(k).value = keep[k]; });
+    return;
+  }
+  var a = e.target.closest('[data-act]');
+  if (!a) return;
+  var act = a.getAttribute('data-act'), id = a.getAttribute('data-id');
+  if (act === 'pickSug') {
+    var keep2 = { compound: $('compound').value, amount: $('amount').value, unit: $('unit').value, when: $('when').value, vial: $('vial').value, notes: $('notes').value };
+    draft.site = a.getAttribute('data-site'); render();
+    Object.keys(keep2).forEach(function (k) { $(k).value = keep2[k]; });
+  } else if (act === 'editDose') {
+    var d = S.doses.filter(function (x) { return x.id === id; })[0];
+    editing = id; draft = { site: d ? d.site : '' }; render(); window.scrollTo(0, 0);
+  } else if (act === 'cancelEdit') { editing = null; draft = { site: '' }; render(); }
+  else if (act === 'delDose') {
+    if (!confirm('Delete this dose?')) return;
+    var snap = JSON.stringify(S);
+    var dd = S.doses.filter(function (x) { return x.id === id; })[0];
+    if (dd) applyVial(dd, +1);
+    S.doses = S.doses.filter(function (x) { return x.id !== id; });
+    S.symptoms.forEach(function (x) { if (x.doseId === id) x.doseId = ''; });
+    if (save()) render(); else S = JSON.parse(snap);
+  } else if (act === 'delVial') {
+    if (!confirm('Delete this vial? Doses that used it stay in your log.')) return;
+    S.vials = S.vials.filter(function (x) { return x.id !== id; });
+    save(); render();
+  } else if (act === 'adjVial') {
+    var v = S.vials.filter(function (x) { return x.id === id; })[0];
+    var n = prompt('Amount left in "' + v.label + '" (' + v.unit + '):', num(v.remaining));
+    if (n === null) return;
+    n = parseFloat(n);
+    if (!(n >= 0)) { toast('Enter a number.'); return; }
+    v.remaining = Math.min(n, v.total); save(); render();
+  } else if (act === 'delW') { S.weights = S.weights.filter(function (x) { return x.id !== id; }); save(); render(); }
+  else if (act === 'delSx') { S.symptoms = S.symptoms.filter(function (x) { return x.id !== id; }); save(); render(); }
+  else if (act === 'export') exportBackup();
+  else if (act === 'report') buildReport(parseInt(a.getAttribute('data-days'), 10));
+  else if (act === 'printReport') window.print();
+  else if (act === 'closeReport') $('report').style.display = 'none';
+  else if (act === 'wipe') {
+    if (!confirm('Erase ALL doses, vials, weights and notes from this phone? Export a backup first if you want to keep them.')) return;
+    if (!confirm('Last check: this cannot be undone. Erase everything?')) return;
+    try { localStorage.setItem(KEY + '_prev', localStorage.getItem(KEY) || ''); } catch (er) { /* best effort */ }
+    S = blank(); save(); render(); toast('Everything erased.');
+  }
+});
+document.addEventListener('submit', function (e) {
+  var id = e.target.id;
+  if (id === 'doseForm') saveDose(e); else if (id === 'vialForm') saveVial(e);
+  else if (id === 'wForm') saveWeight(e); else if (id === 'sxForm') saveSx(e);
+});
+document.addEventListener('change', function (e) {
+  if (e.target.id === 'unitSel') { S.settings.unit = e.target.value; save(); render(); }
+  else if (e.target.id === 'imp' && e.target.files[0]) importBackup(e.target.files[0]);
+});
+
+// ===== 6. START =====
+render();
+// Ask the browser not to evict our data when the phone is short on space.
+try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* optional */ }
+// Offline install support. Only works over https (or localhost); harmless when opened as a plain file.
+try { if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) navigator.serviceWorker.register('sw.js'); } catch (e) { /* optional */ }
+</script>
+</body>
+</html>
