@@ -39,5 +39,5 @@ check, backup round trip, report, and a check that the page makes zero network r
 
 ## Build marker
 
-`Build 2026-10-31.1` appears in `index.html` (About card) and in the `CACHE` name in `sw.js`. Bump both when
+`Build 2026-11-01.1` appears in `index.html` (About card) and in the `CACHE` name in `sw.js`. Bump both when
 `index.html` changes, or an installed copy will keep serving the old version.
